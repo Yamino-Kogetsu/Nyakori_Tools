@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Decrypter (Multi-Method Test)</title>
+    <script src="crypto-js.min.js"></script>
+    <script src="jszip.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 800px; text-align: center; }
+        h1 { font-size: 24px; color: #0d1117; margin-bottom: 10px; }
+        p { color: #57606a; margin-bottom: 25px; }
+        .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .file-drop-area { border: 3px dashed #d0d7de; border-radius: 12px; padding: 20px; font-weight: 600; color: #57606a; transition: all 0.2s; height: 100px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .file-drop-area.ready { border-color: #2c974b; background-color: #f6fff8; }
+        button { width: 100%; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; }
+        #decrypt-btn { background-color: #bf392b; color: white; }
+        .log-box { margin-top: 20px; text-align: left; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Decrypter - Multi-Method Diagnostic</h1>
+        <p>This tool will test multiple known hashing rules to find and decrypt the audio files.</p>
+        <div class="input-grid">
+            <div id="txt-drop-area" class="file-drop-area"><span>1. Drop Audio Asset List (.txt)</span><input type="file" id="txt-input" accept=".txt" style="display: none;"></div>
+            <div id="folder-drop-area" class="file-drop-area"><span>2. Drop Encrypted 'img' Folder</span><input type="file" id="folder-input" webkitdirectory directory style="display: none;"></div>
+        </div>
+        <button id="decrypt-btn" disabled>Attempt Decryption with All Methods</button>
+        <div id="log-box" class="log-box">Awaiting files...</div>
+    </div>
+<script>
+    const txtDropArea = document.getElementById('txt-drop-area'), txtInput = document.getElementById('txt-input');
+    const folderDropArea = document.getElementById('folder-drop-area'), folderInput = document.getElementById('folder-input');
+    const decryptBtn = document.getElementById('decrypt-btn'), logBox = document.getElementById('log-box');
+    let assetList = [], encryptedFileMap = new Map(), CUSTOM_SALT = "emhr7a5c";
+    
+    function setupDropArea(area, input, handler) {
+        ['dragenter','dragover','dragleave','drop'].forEach(e=>area.addEventListener(e,p=>{p.preventDefault();p.stopPropagation();}));
+        ['dragenter','dragover'].forEach(e=>area.addEventListener(e,()=>area.classList.add('drag-over')));
+        ['dragleave','drop'].forEach(e=>area.addEventListener(e,()=>area.classList.remove('drag-over')));
+        area.addEventListener('click',()=>input.click());area.addEventListener('drop',e=>handler(e.dataTransfer.files));input.addEventListener('change',e=>handler(e.target.files));
+    }
+    setupDropArea(txtDropArea, txtInput, handleTxtFile);
+    setupDropArea(folderDropArea, folderInput, handleFolderFiles);
+
+    function log(msg) { logBox.innerHTML += `<div>${msg}</div>`; logBox.scrollTop = logBox.scrollHeight; }
+    function checkReady() { if(assetList.length>0&&encryptedFileMap.size>0){decryptBtn.disabled=false;log('<strong>Ready.</strong>');}}
+
+    function handleTxtFile(files) {
+        const reader = new FileReader();
+        reader.onload=e=>{assetList=e.target.result.split('\n').map(l=>l.trim()).filter(Boolean);txtDropArea.classList.add('ready');log(`Loaded ${assetList.length} audio paths.`);checkReady();};
+        reader.readAsText(files[0]);
+    }
+    function handleFolderFiles(files) {
+        encryptedFileMap.clear();
+        for (const file of files) encryptedFileMap.set(file.name, file);
+        if (encryptedFileMap.size>0){folderDropArea.classList.add('ready');log(`Loaded ${encryptedFileMap.size} encrypted files.`);checkReady();}
+    }
+    
+    async function runDecryption() {
+        decryptBtn.disabled=true; log('<strong>--- Testing All Audio Hashing Rules ---</strong>');
+        const zip = new JSZip(); let decryptedCount=0;
+        
+        for (const fullPath of assetList) {
+            const baseFilename = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+            const ext = baseFilename.split('.').pop().toLowerCase();
+            const nameOnly = baseFilename.substring(0, baseFilename.lastIndexOf('.'));
+            let found = false;
+
+            if (ext !== 'ogg' && ext !== 'm4a') continue;
+            
+            const HASHING_RULES = [
+                { desc: 'md5(name + .rpgmvo/m)', input: nameOnly + (ext === 'ogg' ? '.rpgmvo' : '.rpgmvm') },
+                { desc: 'md5(name + .ext)',      input: baseFilename },
+                { desc: 'md5(name + .rpgmvp)',   input: nameOnly + '.rpgmvp'},
+                { desc: 'md5(name only)',        input: nameOnly }
+            ];
+
+            for (const rule of HASHING_RULES) {
+                const encryptedName = CryptoJS.MD5(rule.input).toString();
+                const encryptedFile = encryptedFileMap.get(encryptedName);
+                if (encryptedFile) {
+                    found = true;
+                    log(`<span style="color:green;">HIT! Found "${fullPath}" using rule [${rule.desc}]</span>`);
+                    try {
+                        const data = await encryptedFile.arrayBuffer();
+                        const key = new Uint8Array(CryptoJS.MD5(encryptedName + CUSTOM_SALT).toString().match(/.{2}/g).map(b => parseInt(b, 16)));
+                        const decrypted = new Uint8Array(data);
+                        for (let i=0; i<decrypted.length; i++) decrypted[i]^=key[i%key.length];
+                        zip.file(fullPath, decrypted);
+                        decryptedCount++;
+                    } catch (e) { log(`<span style="color:red;">ERROR decrypting "${fullPath}": ${e.message}</span>`); }
+                    break; 
+                }
+            }
+            if (!found) log(`<span style="color:orange;">MISS: Could not find a match for "${fullPath}" using any rule.</span>`);
+        }
+        
+        if (decryptedCount > 0) {
+            log('<strong>Packaging ZIP file...</strong>');
+            zip.generateAsync({type:'blob'}).then(content=>{
+                const a=document.createElement('a');a.href=URL.createObjectURL(content);a.download='decrypted_audio.zip';
+                a.click();URL.revokeObjectURL(a.href);log(`<strong style="color:green;">Success! Download started for ${decryptedCount} audio files.</strong>`);
+            });
+        } else {log('<strong style="color:red;">Finished, but no matching files were found.</strong>');}
+        decryptBtn.disabled = false;
+    }
+    decryptBtn.addEventListener('click', runDecryption);
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OGG Numeric Brute-Forcer</title>
+    <script src="crypto-js.min.js"></script>
+    <style>/* ... a simplified version of the previous CSS ... */
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#f0f2f5;color:#1c1e21;font-size:14px}
+        .container{background-color:#fff;padding:20px 30px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:100%;max-width:800px;margin:20px auto}
+        h1,p{text-align:center}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+        .input-group label{display:block;font-weight:600;margin-bottom:5px}
+        input[type=text],input[type=number]{width:100%;padding:8px;border-radius:6px;border:1px solid #d0d7de;box-sizing:border-box}
+        button{width:100%;padding:14px;border-radius:8px;font-size:16px;font-weight:600;border:none;cursor:pointer;background-color:#2c974b;color:#fff;margin-top:20px}
+        button:disabled{background-color:#94d3a2}
+        .log-box{margin-top:20px;background-color:#f6f8fa;border:1px solid #d0d7de;padding:10px;height:200px;overflow-y:scroll;font-family:monospace;font-size:12px}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OGG Numeric Brute-Forcer</h1>
+        <p>Specialized for finding numerically named <strong>.ogg</strong> sound files.</p>
+        <div class="input-group"><label>1. Select Encrypted 'img' Folder</label><input type="file" id="folder-input" webkitdirectory directory></div>
+        <hr style="margin:20px 0;border:0;border-top:1px solid #d8dee4">
+        <div class="grid">
+            <div class="input-group"><label>2. Number Range Start</label><input type="number" id="num-start" value="1"></div>
+            <div class="input-group"><label>3. Number Range End</label><input type="number" id="num-end" value="200"></div>
+            <div class="input-group"><label>4. Output Path Prefix</label><input type="text" id="path-prefix" value="audio/se/"></div>
+        </div>
+        <button id="process-btn" disabled>Start OGG Scan</button>
+        <div id="log-box" class="log-box">Awaiting folder...</div>
+        <button id="download-btn" style="display:none;background-color:#0366d6;margin-top:10px;">Download OGG List</button>
+    </div>
+<script>
+    const folderInput = document.getElementById('folder-input'), numStartEl = document.getElementById('num-start'), numEndEl = document.getElementById('num-end');
+    const pathPrefixEl = document.getElementById('path-prefix'), processBtn = document.getElementById('process-btn');
+    const downloadBtn = document.getElementById('download-btn'), logBox = document.getElementById('log-box');
+    let encryptedFileSet = new Set(), foundResults = [];
+
+    function log(msg){logBox.innerHTML+=`<div>${msg}</div>`;logBox.scrollTop=logBox.scrollHeight;}
+    folderInput.addEventListener('change', e=>{encryptedFileSet.clear();for(const file of e.target.files)encryptedFileSet.add(file.name);if(encryptedFileSet.size>0){log(`Loaded ${encryptedFileSet.size} target files.`);processBtn.disabled=false;}else{log('Folder is empty or not loaded.');}});
+    downloadBtn.addEventListener('click', ()=>{const content = foundResults.map(r=>r.originalPath).sort((a,b)=>{const mA=a.match(/(\d+)\.ogg$/),mB=b.match(/(\d+)\.ogg$/);if(mA&&mB){const nA=parseInt(mA[1],10),nB=parseInt(mB[1],10);return nA-nB;}return a.localeCompare(b);}).join('\n');const blob=new Blob([content],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='numeric_ogg_list.txt';a.click();URL.revokeObjectURL(a.href);});
+    
+    async function runBruteForce(){processBtn.disabled=true;foundResults=[];downloadBtn.style.display='none';log('--- Starting OGG numeric scan ---');
+        const numStart=parseInt(numStartEl.value),numEnd=parseInt(numEndEl.value),pathPrefix=pathPrefixEl.value;
+        const batchSize=100;let batch=[];for(let i=numStart;i<=numEnd;i++){batch.push(i);if(batch.length>=batchSize){await processBatch(batch,pathPrefix);log(`Processed up to number ${i}...`);batch=[];}}
+        if(batch.length>0){await processBatch(batch,pathPrefix);}
+        log(`<strong>--- Scan Finished! Found ${foundResults.length} new OGG files. ---</strong>`);
+        if(foundResults.length>0)downloadBtn.style.display='block';processBtn.disabled=false;}
+    async function processBatch(numbers,pathPrefix){for(const num of numbers){await testOggName(String(num),pathPrefix);}}
+    async function testOggName(name,pathPrefix){
+        const testConfigs=[{rule:'md5(name.ogg)',input:`${name}.ogg`},{rule:'md5(name.rpgmvo)',input:`${name}.rpgmvo`},{rule:'md5(name)',input:name}];
+        for(const config of testConfigs){const hash=CryptoJS.MD5(config.input).toString();if(encryptedFileSet.has(hash)){const originalPath=`${pathPrefix}${name}.ogg`;foundResults.push({originalPath});log(`<span style="color:green;">HIT! Found ${originalPath} with rule [${config.rule}]</span>`);return;}}
+    }
+    processBtn.addEventListener('click',runBruteForce);
+</script>
+</body>
+</html>

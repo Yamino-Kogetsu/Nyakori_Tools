@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Maker Asset Finder v2 (Corrected)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; margin: 0; padding: 20px; }
+        .container { background-color: #ffffff; padding: 20px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 900px; margin: auto; }
+        h1 { font-size: 24px; color: #0d1117; margin-bottom: 5px; text-align: center; }
+        h2 { font-size: 20px; color: #0969da; border-bottom: 2px solid #d8dee4; padding-bottom: 10px; margin-top: 40px; }
+        p { color: #57606a; margin-bottom: 20px; text-align: center; }
+        button { padding: 12px 18px; border-radius: 8px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; transition: background-color 0.2s; }
+        button:disabled { cursor: not-allowed; }
+        .primary-btn { background-color: #0969da; color: white; }
+        .primary-btn:hover:not(:disabled) { background-color: #0c59b8; }
+        .primary-btn:disabled { background-color: #92c5fd; }
+        .secondary-btn { background-color: #2c974b; color: white; }
+        .secondary-btn:hover:not(:disabled) { background-color: #278140; }
+        .tertiary-btn { background-color: #57606a; color: white; }
+        .tertiary-btn:hover:not(:disabled) { background-color: #4a545e; }
+        .file-drop-area { border: 3px dashed #d0d7de; border-radius: 12px; padding: 40px; font-weight: 600; color: #57606a; transition: all 0.2s; margin-bottom: 20px; text-align: center; }
+        .file-drop-area.drag-over { background-color: #ebf5ff; border-color: #0969da; }
+        .download-section { display: none; margin-top: 20px; border-top: 1px solid #d8dee4; padding-top: 20px; text-align: center; }
+        .download-section button { margin: 5px; }
+        .log-box { margin-top: 20px; text-align: left; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; }
+        
+        /* Brute-force generator styles */
+        .generator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .generator-card { background: #f6f8fa; border: 1px solid #d8dee4; padding: 15px; border-radius: 8px; }
+        .generator-card h3 { margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #1c1e21;}
+        .generator-card .path { font-family: monospace; font-size: 12px; color: #57606a; margin-bottom: 10px; word-break: break-all; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+        .form-grid label { font-weight: 600; font-size: 14px; }
+        .form-grid input { width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; }
+        .generator-actions { margin-top: 25px; text-align: center; }
+        .generator-actions textarea { width: 100%; height: 200px; margin-top: 15px; font-family: monospace; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RPG Maker Asset Finder v2 (Corrected)</h1>
+        <p>A comprehensive tool to find used image assets and generate potential filename lists.</p>
+
+        <!-- SECTION 1: Exhaustive Search from Data Files -->
+        <section id="search-tool">
+            <h2>1. Search from Data Files (.json)</h2>
+            <div id="drop-area" class="file-drop-area">Drop all game .json files from the '/data' folder here</div>
+            <button id="process-btn" class="primary-btn" disabled>Start Image Research</button>
+            <div id="download-section-search" class="download-section">
+                <p style="font-weight: 600;">Research Complete! Choose Your Download:</p>
+                <button id="download-detailed-btn" class="tertiary-btn">Download Detailed Report</button>
+                <button id="download-clean-btn" class="secondary-btn">Download Clean List (for decrypter)</button>
+            </div>
+            <div id="log-box-search" class="log-box">Awaiting files...</div>
+        </section>
+
+        <!-- SECTION 2: Brute-Force List Generator -->
+        <section id="bruteforce-tool">
+            <h2>2. Generate Filename Lists (Brute-Force)</h2>
+            <div class="generator-grid" id="generator-grid">
+                <!-- Cards will be injected by JavaScript -->
+            </div>
+            <div class="generator-actions">
+                <button id="generate-list-btn" class="primary-btn">Generate Master List</button>
+                <button id="download-bruteforce-btn" class="secondary-btn" style="display:none;">Download Master List</button>
+                <textarea id="bruteforce-results" style="display:none;" placeholder="Generated file paths will appear here..."></textarea>
+            </div>
+        </section>
+    </div>
+
+<script>
+    // --- PART 1: Exhaustive JSON Search Logic ---
+    const dropArea = document.getElementById('drop-area');
+    const processBtn = document.getElementById('process-btn');
+    const downloadSectionSearch = document.getElementById('download-section-search');
+    const downloadDetailedBtn = document.getElementById('download-detailed-btn');
+    const downloadCleanBtn = document.getElementById('download-clean-btn');
+    const logBoxSearch = document.getElementById('log-box-search');
+    
+    let selectedFiles = [], detailedResults = [], cleanResults = new Set();
+    
+    // RPG Maker MZ/MV asset mapping rules
+    const DIRECT_IMAGE_RULES = [
+        // Actor
+        { key: "characterName", path: "img/characters/", ext: ".png" },
+        { key: "faceName", path: "img/faces/", ext: ".png" },
+        { key: "battlerName", path: "img/sv_actors/", ext: ".png", fileContext: "actors.json" }, // Actor battlers are SV
+        // Enemy
+        { key: "battlerName", path: "img/enemies/", ext: ".png", fileContext: "enemies.json" }, // Enemy battlers are FV
+        { key: "svBattlerName", path: "img/sv_enemies/", ext: ".png" },
+        // Map & System
+        { key: "battleback1Name", path: "img/battlebacks1/", ext: ".png" },
+        { key: "battleback2Name", path: "img/battlebacks2/", ext: ".png" },
+        { key: "parallaxName", path: "img/parallaxes/", ext: ".png" },
+        { key: "tilesetNames", path: "img/tilesets/", ext: ".png", isArray: true },
+        // System & Title
+        { key: "title1Name", path: "img/titles1/", ext: ".png" },
+        { key: "title2Name", path: "img/titles2/", ext: ".png" },
+        { key: "balloonName", path: "img/system/", ext: ".png" },
+        { key: "iconSet", path: "img/system/", ext: ".png", default: "IconSet" },
+        { key: "windowskinName", path: "img/system/", ext: ".png", default: "Window" },
+        // Animations
+        { key: "animation1Name", path: "img/animations/", ext: ".png" },
+        { key: "animation2Name", path: "img/animations/", ext: ".png" },
+    ];
+    const EVENT_IMAGE_RULES = [
+        { code: 231, path: 'img/pictures/', ext: '.png', paramIndex: 1 },
+        { code: 283, path: 'img/battlebacks1/', ext: '.png', paramIndex: 0 },
+        { code: 283, path: 'img/battlebacks2/', ext: '.png', paramIndex: 1 },
+        { code: 284, path: 'img/parallaxes/', ext: '.png', paramIndex: 0 },
+        { code: 322, path: 'img/characters/', ext: '.png', paramIndex: 1 },
+        { code: 322, path: 'img/faces/', ext: '.png', paramIndex: 2 },
+        { code: 322, path: 'img/battlers/', ext: '.png', paramIndex: 3 }, // This is generic, might be actor or enemy
+    ];
+    const NOTE_REGEX_MAP = {
+        'img/faces/': /<(?:Face): ?([a-zA-Z0-9_\-]+)>/gi,
+        'img/characters/': /<(?:Character): ?([a-zA-Z0-9_\-]+)>/gi,
+        'img/enemies/': /<(?:Battler|Enemy): ?([a-zA-Z0-9_\-]+)>/gi,
+        'img/sv_enemies/': /<(?:SVBattler|SVEnemy): ?([a-zA-Z0-9_\-]+)>/gi,
+        'img/pictures/': /<(?:Picture|Sprite|Bust): ?([a-zA-Z0-9_\-]+)>/gi,
+    };
+
+    function setupDropHandlers() {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file'; fileInput.multiple = true; fileInput.accept = '.json';
+        ['dragenter','dragover','dragleave','drop'].forEach(e=>dropArea.addEventListener(e,p=>{p.preventDefault();p.stopPropagation();}));
+        ['dragenter','dragover'].forEach(e=>dropArea.addEventListener(e,()=>dropArea.classList.add('drag-over')));
+        ['dragleave','drop'].forEach(e=>dropArea.addEventListener(e,()=>dropArea.classList.remove('drag-over')));
+        dropArea.addEventListener('click',()=>fileInput.click());dropArea.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+    }
+    
+    function logSearch(message) { logBoxSearch.innerHTML += `<div>${message}</div>`; logBoxSearch.scrollTop = logBoxSearch.scrollHeight; }
+
+    function handleFiles(files) {
+        logBoxSearch.innerHTML=''; downloadSectionSearch.style.display='none'; selectedFiles=Array.from(files).filter(f=>f.name.endsWith('.json'));
+        if(selectedFiles.length > 0){ logSearch(`Loaded ${selectedFiles.length} JSON file(s). Ready to process.`); processBtn.disabled=false; }
+        else{ logSearch('No .json files selected.'); processBtn.disabled=true; }
+    }
+
+    async function runAssetSearch() {
+        processBtn.disabled=true; downloadSectionSearch.style.display='none'; logSearch('<strong>--- Starting Exhaustive Image Research... ---</strong>');
+        detailedResults=[]; cleanResults.clear();
+        for(const file of selectedFiles){ const s=new Set(); try{ const c=await file.text(),d=JSON.parse(c); recursiveScan(d, s, file.name); if(s.size>0){ detailedResults.push({filename:file.name,assets:s}); logSearch(`-> Found ${s.size} path(s) in "${file.name}".`); s.forEach(a=>cleanResults.add(a)); } } catch(e){ logSearch(`<span style="color:red;">ERROR processing "${file.name}": ${e.message}</span>`); } }
+        logSearch(`<strong>--- Research Complete! Found ${cleanResults.size} unique image paths. ---</strong>`);
+        downloadSectionSearch.style.display='block'; processBtn.disabled=false;
+    }
+    
+    function recursiveScan(data, resultSet, filename) {
+        if (!data) return;
+        if (Array.isArray(data)) {
+            data.forEach(item => recursiveScan(item, resultSet, filename));
+            return;
+        }
+        if (typeof data !== 'object') return;
+
+        // 1. Check if the object is an Event Command
+        EVENT_IMAGE_RULES.forEach(rule => {
+            if (data.code === rule.code && Array.isArray(data.parameters)) {
+                const name = data.parameters[rule.paramIndex];
+                if (typeof name === 'string' && name) resultSet.add(rule.path + name + rule.ext);
+            }
+        });
+
+        // 2. Iterate over keys for direct properties and recursion
+        for (const key in data) {
+            if (!data.hasOwnProperty(key)) continue;
+            const value = data[key];
+
+            // A. Check for direct image rules
+            DIRECT_IMAGE_RULES.forEach(rule => {
+                if (rule.key === key && (value || rule.default)) {
+                    // Apply file context if rule has one
+                    if (rule.fileContext && filename.toLowerCase() !== rule.fileContext) return;
+                    
+                    const values = rule.isArray ? value : [value || rule.default];
+                    values.forEach(name => {
+                        if (typeof name === 'string' && name) resultSet.add(rule.path + name + rule.ext);
+                    });
+                }
+            });
+
+            // B. Check for note tags
+            if (key === 'note' && typeof value === 'string' && value) {
+                for (const [path, regex] of Object.entries(NOTE_REGEX_MAP)) {
+                    regex.lastIndex = 0; // Reset global regex state
+                    let match;
+                    while ((match = regex.exec(value)) !== null) {
+                        resultSet.add(`${path}${match[1]}.png`);
+                    }
+                }
+            }
+
+            // C. Recurse into sub-objects
+            if (typeof value === 'object') {
+                recursiveScan(value, resultSet, filename);
+            }
+        }
+    }
+    
+    function generateDetailedReport(){ let c=`Found ${cleanResults.size} unique image paths.\n\n`; detailedResults.forEach(({filename,assets})=>{ c+=`### Assets from: ${filename} ###\n`+Array.from(assets).sort().join('\n')+'\n\n'; }); downloadTxt(c,'detailed_image_list.txt'); }
+    function generateCleanList(){ const c=Array.from(cleanResults).sort().join('\n'); downloadTxt(c,'cleaned_image_list.txt'); }
+    function downloadTxt(content,filename){ if(!content)return; const a=document.createElement('a'),b=new Blob([content],{type:'text/plain;charset=utf-8'});a.href=URL.createObjectURL(b);a.download=filename;a.click();URL.revokeObjectURL(a.href); }
+    
+    // --- PART 2: Brute-Force List Generation Logic ---
+    const generatorGrid = document.getElementById('generator-grid');
+    const generateListBtn = document.getElementById('generate-list-btn');
+    const downloadBruteforceBtn = document.getElementById('download-bruteforce-btn');
+    const bruteforceResultsArea = document.getElementById('bruteforce-results');
+
+    const ASSET_FOLDERS = [
+        { name: "Animations", path: "img/animations/", prefix: "" }, { name: "Battlebacks1", path: "img/battlebacks1/", prefix: "" },
+        { name: "Battlebacks2", path: "img/battlebacks2/", prefix: "" }, { name: "Characters", path: "img/characters/", prefix: "" },
+        { name: "Enemies", path: "img/enemies/", prefix: "" }, { name: "Faces", path: "img/faces/", prefix: "" },
+        { name: "Parallaxes", path: "img/parallaxes/", prefix: "" }, { name: "Pictures", path: "img/pictures/", prefix: "" },
+        { name: "SV Actors", path: "img/sv_actors/", prefix: "" }, { name: "SV Enemies", path: "img/sv_enemies/", prefix: "" },
+        { name: "System", path: "img/system/", prefix: "" }, { name: "Tilesets", path: "img/tilesets/", prefix: "" },
+        { name: "Titles1", path: "img/titles1/", prefix: "" }, { name: "Titles2", path: "img/titles2/", prefix: "" },
+    ];
+
+    function initializeGeneratorUI() {
+        ASSET_FOLDERS.forEach((folder, index) => {
+            const card = document.createElement('div');
+            card.className = 'generator-card';
+            card.innerHTML = `
+                <h3>${folder.name}</h3>
+                <div class="path">${folder.path}</div>
+                <div class="form-grid">
+                    <label for="prefix-${index}">Prefix</label> <input type="text" id="prefix-${index}" value="${folder.prefix}">
+                    <label for="suffix-${index}">Suffix</label> <input type="text" id="suffix-${index}" value="">
+                    <label for="start-${index}">Start #</label> <input type="number" id="start-${index}" value="1" min="0">
+                    <label for="end-${index}">End #</label> <input type="number" id="end-${index}" value="100" min="1">
+                    <label for="pad-${index}">Padding</label> <input type="number" id="pad-${index}" value="2" min="0" max="10" title="e.g., 2 for '01'">
+                </div>
+            `;
+            generatorGrid.appendChild(card);
+        });
+    }
+
+    function generateBruteForceList() {
+        let masterList = [];
+        ASSET_FOLDERS.forEach((folder, index) => {
+            const prefix = document.getElementById(`prefix-${index}`).value;
+            const suffix = document.getElementById(`suffix-${index}`).value;
+            const start = parseInt(document.getElementById(`start-${index}`).value, 10);
+            const end = parseInt(document.getElementById(`end-${index}`).value, 10);
+            const padding = parseInt(document.getElementById(`pad-${index}`).value, 10);
+            if (isNaN(start) || isNaN(end)) return;
+            for (let i = start; i <= end; i++) {
+                const numberStr = isNaN(padding) ? String(i) : String(i).padStart(padding, '0');
+                masterList.push(`${folder.path}${prefix}${numberStr}${suffix}.png`);
+            }
+        });
+        bruteforceResultsArea.value = masterList.join('\n');
+        bruteforceResultsArea.style.display = 'block';
+        downloadBruteforceBtn.style.display = 'inline-block';
+    }
+    
+    // --- Initializing Page ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Init Search Tool
+        processBtn.addEventListener('click', runAssetSearch);
+        downloadDetailedBtn.addEventListener('click', generateDetailedReport);
+        downloadCleanBtn.addEventListener('click', generateCleanList);
+        setupDropHandlers();
+
+        // Init Brute-force Tool
+        initializeGeneratorUI();
+        generateListBtn.addEventListener('click', generateBruteForceList);
+        downloadBruteforceBtn.addEventListener('click', () => {
+            downloadTxt(bruteforceResultsArea.value, 'bruteforce_image_list.txt');
+        });
+    });
+</script>
+</body>
+</html>

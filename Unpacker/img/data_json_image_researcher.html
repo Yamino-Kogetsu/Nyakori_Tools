@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exhaustive Image Researcher v2</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 800px; text-align: center; }
+        h1 { font-size: 24px; color: #0d1117; margin-bottom: 10px; }
+        p { color: #57606a; margin-bottom: 25px; }
+        .file-drop-area { border: 3px dashed #d0d7de; border-radius: 12px; padding: 40px; font-weight: 600; color: #57606a; transition: all 0.2s; margin-bottom: 20px; }
+        .file-drop-area.drag-over { background-color: #ebf5ff; border-color: #0969da; }
+        button { width: 100%; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; }
+        #process-btn { background-color: #0969da; color: white; margin-bottom: 15px; }
+        #process-btn:disabled { background-color: #92c5fd; }
+        .download-section { display: none; margin-top: 20px; border-top: 1px solid #d8dee4; padding-top: 20px; }
+        #download-detailed-btn { background-color: #57606a; color: white; margin-top: 10px; }
+        #download-clean-btn { background-color: #2c974b; color: white; margin-top: 10px; }
+        .log-box { margin-top: 20px; text-align: left; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Exhaustive Image Researcher v2</h1>
+        <p>This advanced tool also scans map events and plugin "note" fields.</p>
+        <div id="drop-area" class="file-drop-area">Drop all .json files here</div>
+        <button id="process-btn" disabled>1. Start Exhaustive Image Research</button>
+        <div id="download-section" class="download-section">
+            <p style="font-weight: 600;">Research Complete! Choose Your Download:</p>
+            <button id="download-detailed-btn">Download Detailed Report</button>
+            <button id="download-clean-btn">Download Clean List (for decrypter)</button>
+        </div>
+        <div id="log-box" class="log-box">Awaiting files...</div>
+    </div>
+<script>
+    const dropArea = document.getElementById('drop-area'), processBtn = document.getElementById('process-btn');
+    const downloadSection = document.getElementById('download-section'), downloadDetailedBtn = document.getElementById('download-detailed-btn');
+    const downloadCleanBtn = document.getElementById('download-clean-btn'), logBox = document.getElementById('log-box');
+    let selectedFiles = [], detailedResults = [], cleanResults = new Set();
+    
+    const DIRECT_IMAGE_RULES = [
+        { key: "characterName", path: "img/characters/", ext: ".png" }, { key: "faceName", path: "img/faces/", ext: ".png" },
+        { key: "battlerName", path: "img/enemies/", ext: ".png" }, { key: "battleback1Name", path: "img/battlebacks1/", ext: ".png" },
+        { key: "battleback2Name", path: "img/battlebacks2/", ext: ".png" }, { key: "parallaxName", path: "img/parallaxes/", ext: ".png" },
+        { key: "tilesetNames", path: "img/tilesets/", ext: ".png", isArray: true }, { key: "title1Name", path: "img/titles1/", ext: ".png" },
+        { key: "title2Name", path: "img/titles2/", ext: ".png" }, { key: "windowskinName", path: "img/system/", ext: ".png" },
+        { key: "iconSet", path: "img/system/", ext:".png" }, { key: "weaponImageId", path: "img/system/", prefix:"Weapons", num: 1, ext: ".png"} // this might be complex
+    ];
+    const EVENT_IMAGE_RULES = [
+        { code: 231, path: 'img/pictures/', ext: '.png', paramIndex: 1 },
+        { code: 283, path: 'img/battlebacks1/', ext: '.png', paramIndex: 0 },
+        { code: 283, path: 'img/battlebacks2/', ext: '.png', paramIndex: 1 },
+        { code: 284, path: 'img/parallaxes/', ext: '.png', paramIndex: 0 },
+        { code: 322, path: 'img/characters/', ext: '.png', paramIndex: 1 },
+        { code: 322, path: 'img/faces/', ext: '.png', paramIndex: 2 },
+        { code: 322, path: 'img/battlers/', ext: '.png', paramIndex: 3 },
+    ];
+    const NOTE_REGEX = /<(?:Icon|Face|Character|Battler|Picture|Sprite|Bust): ?([a-zA-Z0-9_\-]+)>/gi;
+
+    function setupDropHandlers() {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file'; fileInput.multiple = true; fileInput.accept = '.json';
+        ['dragenter','dragover','dragleave','drop'].forEach(e=>dropArea.addEventListener(e,p=>{p.preventDefault();p.stopPropagation();}));
+        ['dragenter','dragover'].forEach(e=>dropArea.addEventListener(e,()=>dropArea.classList.add('drag-over')));
+        ['dragleave','drop'].forEach(e=>dropArea.addEventListener(e,()=>dropArea.classList.remove('drag-over')));
+        dropArea.addEventListener('click',()=>fileInput.click());dropArea.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+    }
+    
+    function log(message) { logBox.innerHTML += `<div>${message}</div>`; logBox.scrollTop = logBox.scrollHeight; }
+
+    function handleFiles(files) {
+        logBox.innerHTML='';downloadSection.style.display='none';selectedFiles=Array.from(files).filter(f=>f.name.endsWith('.json'));
+        if(selectedFiles.length>0){log(`Loaded ${selectedFiles.length} JSON file(s).`);processBtn.disabled=false;}
+        else{log('No .json files selected.');processBtn.disabled=true;}
+    }
+
+    async function runAssetSearch() {
+        processBtn.disabled=true;downloadSection.style.display='none';log('<strong>--- Starting Exhaustive Image Research... ---</strong>');
+        detailedResults=[];cleanResults.clear();
+        for(const file of selectedFiles){const s=new Set();try{const c=await file.text(),d=JSON.parse(c);recursiveScan(d,s);if(s.size>0){detailedResults.push({filename:file.name,assets:s});log(`-> Found ${s.size} path(s) in "${file.name}".`);s.forEach(a=>cleanResults.add(a));}}catch(e){log(`<span style="color:red;">ERROR processing "${file.name}".</span>`);}}
+        log(`<strong>--- Research Complete! Found ${cleanResults.size} unique image paths. ---</strong>`);
+        downloadSection.style.display='block';processBtn.disabled=false;
+    }
+    
+    function recursiveScan(data,resultSet){
+        if(!data)return;if(Array.isArray(data)){data.forEach(item=>recursiveScan(item,resultSet));}
+        else if(typeof data==='object'){
+            EVENT_IMAGE_RULES.forEach(rule=>{if(data.code===rule.code&&Array.isArray(data.parameters)){const name=data.parameters[rule.paramIndex];if(typeof name==='string'&&name)resultSet.add(rule.path+name+rule.ext);}});
+            for(const key in data){
+                DIRECT_IMAGE_RULES.forEach(rule=>{if(rule.key===key&&data[key]){const values=rule.isArray?data[key]:[data[key]];values.forEach(name=>{if(typeof name==='string'&&name)resultSet.add(rule.path+name+rule.ext);});}});
+                if(key==='note'&&typeof data[key]==='string'){let match;while(match=NOTE_REGEX.exec(data[key])){const folder=match[0].toLowerCase().includes('face')?'faces':'pictures';resultSet.add(`img/${folder}/${match[1]}.png`);}}
+                if(typeof data[key]==='object')recursiveScan(data[key],resultSet);
+            }
+        }
+    }
+    
+    function generateDetailedReport(){let c=`Found ${cleanResults.size} paths.\n\n`;detailedResults.forEach(({filename,assets})=>{c+=`### Assets from: ${filename} ###\n`+Array.from(assets).sort().join('\n')+'\n\n';});downloadTxt(c,'detailed_image_list_v2.txt');}
+    function generateCleanList(){const c=Array.from(cleanResults).sort().join('\n');downloadTxt(c,'cleaned_image_list_v2.txt');}
+    function downloadTxt(content,filename){if(!content)return;const a=document.createElement('a'),b=new Blob([content],{type:'text/plain;charset=utf-8'});a.href=URL.createObjectURL(b);a.download=filename;a.click();URL.revokeObjectURL(a.href);}
+    
+    processBtn.addEventListener('click', runAssetSearch);
+    downloadDetailedBtn.addEventListener('click', generateDetailedReport);
+    downloadCleanBtn.addEventListener('click', generateCleanList);
+    setupDropHandlers();
+</script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Definitive Nyakori Game Decrypter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); width: 100%; max-width: 800px; }
+        h1 { font-size: 24px; color: #0d1117; margin-bottom: 10px; text-align: center; }
+        p { color: #57606a; margin-bottom: 25px; text-align: center; font-weight: 500; }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #24292f; }
+        button { width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; transition: background-color 0.2s; }
+        textarea { width: 100%; height: 200px; padding: 10px; border-radius: 8px; border: 1px solid #d0d7de; font-family: monospace; font-size: 14px; box-sizing: border-box; }
+        #folder-select-btn { background-color: #0969da; color: white; margin-bottom: 5px; }
+        #folder-select-btn:hover { background-color: #055ec3; }
+        #decrypt-btn { background-color: #2c974b; color: white; }
+        #decrypt-btn:hover { background-color: #278842; }
+        #decrypt-btn:disabled { background-color: #94d3a2; cursor: not-allowed; }
+        .log-box { margin-top: 20px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; }
+        .log-entry.success { color: #1f883d; }
+        .log-entry.error { color: #cf222e; }
+        .log-entry.info { color: #57606a; }
+        .log-entry.final { font-weight: bold; color: #0969da; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ultimate Game Decrypter (Final Logic)</h1>
+        <p>Incorporates the final discovered hashing rules for all file types.</p>
+        <div class="control-group">
+            <label>1. Choose Game's Encrypted 'img' Folder</label>
+            <button id="folder-select-btn">Select Folder</button>
+            <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
+        </div>
+        <div class="control-group">
+            <label for="filenames-list">2. List of Original Full Paths (from your JSON research)</label>
+            <textarea id="filenames-list" placeholder="data/System.json
+img/battlebacks1/Grassland.png
+img/characters/Actor1.png"></textarea>
+        </div>
+        <button id="decrypt-btn" disabled>3. Decrypt All & Download ZIP</button>
+        <div id="log-box" class="log-box">Awaiting folder selection...</div>
+    </div>
+<script>
+const folderSelectBtn = document.getElementById('folder-select-btn');
+const folderInput = document.getElementById('folder-input');
+const filenamesList = document.getElementById('filenames-list');
+const decryptBtn = document.getElementById('decrypt-btn');
+const logBox = document.getElementById('log-box');
+let encryptedFileMap = new Map();
+const SALT = "emhr7a5c";
+
+function log(message, type = 'info') {
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+folderSelectBtn.addEventListener('click', () => folderInput.click());
+decryptBtn.addEventListener('click', handleBulkDecrypt);
+folderInput.addEventListener('change', (event) => {
+    logBox.innerHTML = '';
+    encryptedFileMap.clear();
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+        log('Folder is empty or not selected.', 'error');
+        decryptBtn.disabled = true;
+        return;
+    }
+    for (const file of files) { encryptedFileMap.set(file.name, file); }
+    log(`${encryptedFileMap.size} files loaded from the 'img' folder. Ready.`, 'success');
+    decryptBtn.disabled = false;
+});
+
+function getDecryptionKey(keySource) {
+    const keyHex = CryptoJS.MD5(keySource).toString(CryptoJS.enc.Hex);
+    return new Uint8Array(keyHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+}
+
+function performXOR(key, dataBuffer) {
+    const data = new Uint8Array(dataBuffer);
+    for (let i = 0; i < data.length; i++) {
+        data[i] ^= key[i % key.length];
+    }
+    return data;
+}
+
+async function handleBulkDecrypt() {
+    decryptBtn.disabled = true;
+    log('Starting decryption with complete, final logic...', 'info');
+
+    const fullPaths = filenamesList.value.split('\n').map(f => f.trim()).filter(Boolean);
+    if (fullPaths.length === 0) {
+        log('Filename list is empty. Add asset paths from your JSON research.', 'error');
+        decryptBtn.disabled = false;
+        return;
+    }
+
+    const zip = new JSZip();
+    let foundCount = 0;
+
+    const decryptionPromises = fullPaths.map(async (fullPath) => {
+        const baseFilename = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+        let nameToHash = '';
+        const ext = baseFilename.split('.').pop().toLowerCase();
+
+        // === The Final Combined Hashing Logic ===
+        if (ext === 'json') {
+            // Rule for Data: Hash the full filename, e.g., "System.json"
+            nameToHash = baseFilename;
+        } else if (ext === 'png') {
+            // Rule for Images: Hash filename without extension + ".rpgmvp", e.g., "Grassland.rpgmvp"
+            const nameOnly = baseFilename.substring(0, baseFilename.lastIndexOf('.'));
+            nameToHash = nameOnly + '.rpgmvp';
+        } else {
+            // Skip audio or other types, as they aren't hashed this way
+            log(`Skipping unsupported file type: ${fullPath}`, 'info');
+            return;
+        }
+        
+        const encryptedName = CryptoJS.MD5(nameToHash).toString();
+        log(`Searching for hash of "${nameToHash}" -> ${encryptedName}`);
+        
+        const encryptedFile = encryptedFileMap.get(encryptedName);
+        
+        if (encryptedFile) {
+            try {
+                // Key generation and decryption are always the same
+                const keySource = encryptedName + SALT; 
+                const decryptionKey = getDecryptionKey(keySource);
+                const encryptedData = await encryptedFile.arrayBuffer();
+                const decryptedData = performXOR(decryptionKey, encryptedData);
+
+                zip.file(fullPath, decryptedData);
+                log(`OK: Decrypted '${fullPath}'`, 'success');
+                foundCount++;
+            } catch (err) {
+                log(`FAIL: Error processing '${fullPath}': ${err.message}`, 'error');
+            }
+        } else {
+             log(`MISSING: Hash for '${nameToHash}' (${encryptedName}) not found in folder.`);
+        }
+    });
+
+    await Promise.all(decryptionPromises);
+
+    if (foundCount > 0) {
+        log(`Success! Decrypted ${foundCount} files. Generating ZIP...`, 'final');
+        zip.generateAsync({ type: 'blob' }).then(content => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(content);
+            a.download = 'decrypted_files_COMPLETE.zip';
+            a.click();
+            URL.revokeObjectURL(a.href);
+            log('ZIP file download started.', 'success');
+        });
+    } else {
+        log('Process finished. No matching files were found.', 'final');
+    }
+    decryptBtn.disabled = false;
+}
+</script>
+</body>
+</html>

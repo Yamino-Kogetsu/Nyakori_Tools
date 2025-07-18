@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brute-Force Hash Cracker</title>
+    <script src="crypto-js.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; font-size: 14px; }
+        .container { background-color: #ffffff; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 900px; margin: 20px auto; }
+        h1 { text-align: center; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .input-group label { display: block; font-weight: 600; margin-bottom: 5px; }
+        textarea, input[type="text"], input[type="number"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #d0d7de; box-sizing: border-box; }
+        textarea { height: 150px; font-family: monospace; }
+        button { width: 100%; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; background-color: #d73a49; color: white; margin-top: 20px; }
+        button:disabled { background-color: #e28e96; }
+        .log-box { margin-top: 20px; background-color: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Brute-Force Hash Cracker</h1>
+        <p style="text-align: center;">This tool finds hardcoded asset names by generating thousands of possibilities and testing them against your game files. <strong>This process is SLOW and will freeze your browser. Be patient.</strong></p>
+
+        <div class="input-group">
+            <label>1. Select Encrypted 'img' Folder (must contain all 3000+ files)</label>
+            <input type="file" id="folder-input" webkitdirectory directory>
+        </div>
+        
+        <div class="grid">
+            <div class="input-group">
+                <label>2. Base Names (one per line)</label>
+                <textarea id="base-names"></textarea>
+            </div>
+            <div class="input-group">
+                <label>3. Prefixes (optional, one per line)</label>
+                <textarea id="prefixes">Icon_
+FX_</textarea>
+                <label style="margin-top:10px;">4. Suffixes (optional, one per line)</label>
+                <textarea id="suffixes">_A
+_B
+_C</textarea>
+            </div>
+        </div>
+        
+        <div class="grid" style="margin-top:10px;">
+            <div class="input-group">
+                <label>5. Numeric Sequence Start</label>
+                <input type="number" id="num-start" value="1">
+            </div>
+            <div class="input-group">
+                <label>6. Numeric Sequence End</label>
+                <input type="number" id="num-end" value="200">
+            </div>
+        </div>
+
+        <button id="process-btn" disabled>Start Brute-Force Attack</button>
+        <div id="log-box" class="log-box">Awaiting folder selection...</div>
+        <button id="download-btn" style="display:none; background-color: #2c974b; margin-top:10px;">Download Found Paths</button>
+
+    </div>
+<script>
+    const folderInput = document.getElementById('folder-input');
+    const baseNamesEl = document.getElementById('base-names');
+    const prefixesEl = document.getElementById('prefixes');
+    const suffixesEl = document.getElementById('suffixes');
+    const numStartEl = document.getElementById('num-start');
+    const numEndEl = document.getElementById('num-end');
+    const processBtn = document.getElementById('process-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const logBox = document.getElementById('log-box');
+    
+    let encryptedFileSet = new Set();
+    let foundResults = [];
+    const CUSTOM_SALT = "emhr7a5c";
+    
+    // --- Pre-populate dictionary with useful terms ---
+    const defaultWords = [
+        "Icon", "IconSet", "Actor", "Character", "Face", "Enemy",
+        "Effect", "Animation", "Window", "Button", "System",
+        "Parallax", "Tile", "Tileset", "Bust", "Sprite", "Picture", "UI",
+        // Game specific terms
+        "Nyakori", "Toru", "Carla", "Rabbit", "Doll", "Menu", "Title",
+        // Common SFX/VFX words
+        "Sword", "Slash", "Fire", "Ice", "Thunder", "Heal", "Wind", "Water", "Darkness",
+        "Explosion", "Hit", "Cursor", "Cancel", "Ok", "Buzzer", "Equip", "Save", "Load"
+    ];
+    baseNamesEl.value = defaultWords.join('\n');
+
+    function log(msg) { logBox.innerHTML += `<div>${msg}</div>`; logBox.scrollTop = logBox.scrollHeight; }
+
+    folderInput.addEventListener('change', e => {
+        encryptedFileSet.clear();
+        for (const file of e.target.files) encryptedFileSet.add(file.name);
+        if (encryptedFileSet.size > 0) {
+            log(`Loaded ${encryptedFileSet.size} target files.`);
+            processBtn.disabled = false;
+        } else { log('Folder is empty or not loaded.'); }
+    });
+    
+    downloadBtn.addEventListener('click', () => {
+        let content = "### Bruteforce Results ###\n";
+        foundResults.forEach(r => {
+            content += `${r.originalPath}  (Rule: ${r.rule}, Hash: ${r.hash})\n`;
+        });
+        const a = document.createElement('a');
+        const blob = new Blob([content], {type: 'text/plain'});
+        a.href = URL.createObjectURL(blob);
+        a.download = 'bruteforce_found_list.txt';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    async function runBruteForce() {
+        processBtn.disabled = true;
+        log('--- Starting Brute-Force. This will take a long time! ---');
+        foundResults = [];
+        
+        const baseNames = baseNamesEl.value.split('\n').map(l => l.trim()).filter(Boolean);
+        const prefixes = prefixesEl.value.split('\n').map(l => l.trim()).filter(p => p !== '');
+        const suffixes = suffixesEl.value.split('\n').map(l => l.trim()).filter(s => s !== '');
+        const numStart = parseInt(numStartEl.value);
+        const numEnd = parseInt(numEndEl.value);
+        
+        const testCandidates = new Set();
+
+        // Generate all candidates to avoid duplicate testing
+        for (const prefix of ['', ...prefixes]) {
+            for (const base of baseNames) {
+                for (const suffix of ['', ...suffixes]) {
+                    // Test with numbers
+                    for (let i = numStart; i <= numEnd; i++) {
+                        testCandidates.add(`${prefix}${base}${i}${suffix}`);
+                    }
+                    // Test without numbers
+                    testCandidates.add(`${prefix}${base}${suffix}`);
+                }
+            }
+        }
+        
+        log(`Generated ${testCandidates.size} unique name combinations to test...`);
+        
+        // This helper function allows the UI to update periodically.
+        async function processBatch(candidates) {
+            for (const name of candidates) {
+                await testName(name);
+            }
+        }
+
+        const candidatesArray = Array.from(testCandidates);
+        const batchSize = 100;
+        for (let i = 0; i < candidatesArray.length; i += batchSize) {
+             // Wrap in a promise to allow UI to update with setTimeout
+             await new Promise(resolve => setTimeout(() => {
+                 processBatch(candidatesArray.slice(i, i + batchSize)).then(resolve);
+             }, 0));
+             log(`Processed ${i + batchSize} / ${candidatesArray.length}...`);
+        }
+
+        log(`<strong>--- Brute-Force Finished! Found ${foundResults.length} new files. ---</strong>`);
+        if (foundResults.length > 0) {
+            downloadBtn.style.display = 'block';
+        }
+        processBtn.disabled = false;
+    }
+
+    async function testName(name) {
+        // HASHING RULES TO TEST
+        const testConfigs = [
+            { path: 'img/pictures/', input: `${name}.rpgmvp`, originalExt: '.png', desc: 'img.rpgmvp' },
+            { path: 'img/pictures/', input: `${name}.png`, originalExt: '.png', desc: 'img.png' },
+            { path: 'img/pictures/', input: name, originalExt: '.png', desc: 'img_nameonly' },
+            { path: 'audio/se/', input: `${name}.ogg`, originalExt: '.ogg', desc: 'audio.ogg' }
+        ];
+
+        for(const config of testConfigs) {
+            const hash = CryptoJS.MD5(config.input).toString();
+            if (encryptedFileSet.has(hash)) {
+                const originalPath = `${config.path}${name}${config.originalExt}`;
+                const result = { originalPath: originalPath, hash: hash, rule: config.desc };
+                foundResults.push(result);
+                log(`<span style="color:green;">HIT! Found ${originalPath}</span>`);
+            }
+        }
+    }
+
+    processBtn.addEventListener('click', runBruteForce);
+</script>
+</body>
+</html>
