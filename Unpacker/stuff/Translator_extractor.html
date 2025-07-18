@@ -1,0 +1,43 @@
+const fs = require('fs');
+
+// --- IMPORTANT: PASTE YOUR DECRYPTION FUNCTION HERE ---
+// Replace the contents of this function with the code for pe.gxxx you found.
+// The parameters (filePath, data) must be kept.
+function decrypt_pe_gxxx(filePath, data) {
+    // PASTE THE ENTIRE BODY OF YOUR `pe.gxxx` FUNCTION HERE
+    // For example, it might look like:
+    // for (var i = 0; i < data.length; i++) {
+    //   data[i] = data[i] ^ some_key[i % some_key.length];
+    // }
+    // Whatever it is, put it here.
+    
+    return data; // Make sure the function returns the modified data buffer
+}
+// --- END OF DECRYPTION FUNCTION ---
+
+
+// --- MAIN SCRIPT ---
+const hashedFileName = '94747535bce9591e05a2e4f09a584877'; // The file you found in Step 1
+const outputFileName = 'Localization_RECOVERED.xlsx';
+
+console.log(`Reading encrypted file: ${hashedFileName}`);
+
+try {
+    // Read the file as a raw buffer of data
+    let fileBuffer = fs.readFileSync(hashedFileName);
+
+    console.log('File read successfully. Starting decryption...');
+    
+    // Decrypt the buffer by passing it to your function
+    let decryptedBuffer = decrypt_pe_gxxx(hashedFileName, fileBuffer);
+
+    console.log('Decryption complete. Saving to output file...');
+
+    // Write the decrypted buffer to a new file with the .xlsx extension
+    fs.writeFileSync(outputFileName, decryptedBuffer);
+
+    console.log(`Success! Your translation file has been extracted to: ${outputFileName}`);
+
+} catch (error) {
+    console.error('An error occurred:', error);
+}

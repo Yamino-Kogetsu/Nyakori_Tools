@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Maker MV Asset Decryptor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="container">
+        <h1>RPG Maker MV Asset Decryptor (Multi-Pattern)</h1>
+        <p>This tool identifies and decrypts assets using their <strong>encrypted filename</strong> by testing multiple hashing methods.</p>
+
+        <div class="step">
+            <h2>Step 1: Upload Your Encrypted `img` Folder</h2>
+            <p>Drag and drop your game's `img` folder here. This provides the tool with the files to decrypt.</p>
+            <div id="drop-area">
+                <p>Drag & Drop Folder/Files Here</p>
+                <input type="file" id="encrypted-files-input" webkitdirectory multiple>
+            </div>
+        </div>
+
+        <div class="step">
+            <h2>Step 2: Enter Encrypted Filename to Decrypt</h2>
+            <p>From your file explorer, copy the long, hashed filename of an asset you want to recover (like one of the larger ones you suspect is an XLSX file) and paste it here.</p>
+            <input type="text" id="hashed-filename-input" placeholder="e.g., 19e46daacc68f72209d8061a6f4f002e">
+        </div>
+        
+        <button id="decrypt-button">Find Original Name and Decrypt</button>
+        <button id="scan-all-button">Scan ALL Uploaded Files & Decrypt All Matches</button>
+
+        <div class="step">
+            <h2>Hashing Patterns Being Tested:</h2>
+            <ul id="patterns-list">
+                <!-- This list will be populated by JavaScript -->
+            </ul>
+        </div>
+
+        <div class="step">
+            <h2>Log</h2>
+            <pre id="log-box"></pre>
+        </div>
+
+        <div id="download-container">
+            <!-- Download link(s) will appear here -->
+        </div>
+
+    </div>
+    <script src="decrypt_tool.js"></script>
+</body>
+</html>

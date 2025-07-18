@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Maker MV Asset Extractor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #eee;
+            background-color: #222;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #333;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            box-sizing: border-box;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background-color: #1e1e1e;
+            color: #ddd;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 20px 0;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #results-container {
+            margin-top: 20px;
+        }
+        #download-link {
+            display: none;
+            text-align: center;
+            padding: 12px;
+            margin-top: 10px;
+            background-color: #008CBA;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        #download-link:hover {
+            background-color: #007ba7;
+        }
+        pre {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #ccc;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>RPG Maker MV Asset Extractor</h1>
+        <p>Paste the full content of your deobfuscated JavaScript file below and click the button to generate a list of all referenced game assets.</p>
+
+        <label for="js-code">JavaScript Code:</label>
+        <textarea id="js-code" placeholder="Paste your deobfuscated game code here..."></textarea>
+
+        <button id="extract-btn">Extract File Paths</button>
+
+        <div id="results-container">
+            <h2 id="results-title" style="display:none;">Detected Files:</h2>
+            <pre id="results-output"></pre>
+            <a id="download-link" href="#" download="file_list.txt">Download file_list.txt</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('extract-btn').addEventListener('click', () => {
+            const code = document.getElementById('js-code').value;
+            if (!code) {
+                alert('Please paste your code into the text area first.');
+                return;
+            }
+
+            const resultsOutput = document.getElementById('results-output');
+            const downloadLink = document.getElementById('download-link');
+            const resultsTitle = document.getElementById('results-title');
+
+            resultsOutput.textContent = 'Processing...';
+            resultsTitle.style.display = 'block';
+            downloadLink.style.display = 'none';
+
+            // Use a timeout to allow the UI to update before the heavy processing
+            setTimeout(() => {
+                const filePaths = new Set();
+
+                // Folder mappings for RPG Maker MV functions
+                const imageManagerFolders = {
+                    loadAnimation: 'img/animations/',
+                    loadBattleback1: 'img/battlebacks1/',
+                    loadBattleback2: 'img/battlebacks2/',
+                    loadCharacter: 'img/characters/',
+                    loadEnemy: 'img/enemies/',
+                    loadFace: 'img/faces/',
+                    loadParallax: 'img/parallaxes/',
+                    loadPicture: 'img/pictures/',
+                    loadSvActor: 'img/sv_actors/',
+                    loadSvEnemy: 'img/sv_enemies/',
+                    loadSystem: 'img/system/',
+                    loadTileset: 'img/tilesets/',
+                    loadTitle1: 'img/titles1/',
+                    loadTitle2: 'img/titles2/'
+                };
+
+                const audioManagerFolders = {
+                    playBgm: 'audio/bgm/',
+                    playBgs: 'audio/bgs/',
+                    playMe: 'audio/me/',
+                    playSe: 'audio/se/',
+                    preloadBgm: 'audio/bgm/',
+                    preloadBgs: 'audio/bgs/',
+                    preloadMe: 'audio/me/',
+                    preloadSe: 'audio/se/'
+                };
+
+                // Regex patterns
+                const fullPathRegex = /(['"])((?:img|audio|data|video|materials|icon)\/[^'"]+)\1/g;
+                const imageManagerRegex = /ImageManager\.(load[a-zA-Z]+)\s*\(\s*['"]([^'"]+)['"]/g;
+                const audioManagerRegex = /AudioManager\.(playSe|playBgm|playBgs|playMe|preloadSe)\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/g;
+                const dataManagerRegex = /DataManager\.loadDataFile\s*\(\s*'[^']+',\s*'([^']+)'\)/g;
+                const videoRegex = /Graphics\.playVideo\(['"]([^'"]+)['"]\)/g;
+
+                // 1. Find full hardcoded paths
+                let match;
+                while ((match = fullPathRegex.exec(code)) !== null) {
+                    filePaths.add(match[2]);
+                }
+
+                // 2. Find paths from ImageManager calls
+                while ((match = imageManagerRegex.exec(code)) !== null) {
+                    const funcName = match[1];
+                    const fileName = match[2];
+                    if (imageManagerFolders[funcName] && fileName) {
+                        filePaths.add(imageManagerFolders[funcName] + fileName);
+                    }
+                }
+
+                // 3. Find paths from AudioManager calls
+                 while ((match = audioManagerRegex.exec(code)) !== null) {
+                    const funcName = match[1];
+                    const fileName = match[2];
+                     if (audioManagerFolders[funcName] && fileName) {
+                        filePaths.add(audioManagerFolders[funcName] + fileName);
+                    }
+                }
+
+                // 4. Find paths from DataManager calls
+                while ((match = dataManagerRegex.exec(code)) !== null) {
+                    const fileName = match[1];
+                    if (fileName) {
+                        filePaths.add('data/' + fileName);
+                    }
+                }
+                
+                // 5. Find video paths
+                while ((match = videoRegex.exec(code)) !== null) {
+                    const fileName = match[1];
+                    // RPG Maker MV default video folder is 'movies'
+                    if (fileName) {
+                        filePaths.add('movies/' + fileName);
+                    }
+                }
+
+
+                const sortedPaths = Array.from(filePaths).sort();
+                const outputText = sortedPaths.join('\n');
+                
+                resultsOutput.textContent = outputText || 'No file paths were found.';
+
+                if (outputText) {
+                    const blob = new Blob([outputText], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    downloadLink.href = url;
+                    downloadLink.style.display = 'block';
+                }
+
+            }, 50); // 50ms timeout
+        });
+    </script>
+
+</body>
+</html>

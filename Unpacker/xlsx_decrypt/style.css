@@ -1,0 +1,107 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #282c34;
+    color: #abb2bf;
+    margin: 0;
+    padding: 20px;
+}
+#container {
+    max-width: 800px;
+    margin: auto;
+    background-color: #3b4048;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+h1, h2 {
+    color: #61afef;
+    border-bottom: 1px solid #4f5661;
+    padding-bottom: 10px;
+}
+p {
+    line-height: 1.6;
+}
+.step {
+    margin-bottom: 25px;
+}
+#drop-area {
+    border: 2px dashed #4f5661;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+#drop-area.highlight {
+    background-color: #4f5661;
+    border-color: #61afef;
+}
+#drop-area p {
+    margin: 0;
+    font-size: 1.2em;
+    color: #abb2bf;
+}
+input[type="file"] {
+    display: block;
+    margin: 15px auto 0;
+}
+input[type="text"], button {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: 4px;
+    border: 1px solid #4f5661;
+    background-color: #21252b;
+    color: #abb2bf;
+    font-size: 1em;
+}
+button {
+    background-color: #61afef;
+    color: #21252b;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background-color 0.2s;
+}
+#scan-all-button {
+    background-color: #c678dd;
+}
+button:hover {
+    background-color: #529bd8;
+}
+#scan-all-button:hover {
+    background-color: #b36ac5;
+}
+#log-box {
+    background-color: #21252b;
+    border: 1px solid #4f5661;
+    padding: 15px;
+    height: 250px;
+    overflow-y: scroll;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.9em;
+}
+#patterns-list {
+    list-style-type: square;
+    background-color: #21252b;
+    padding: 15px 15px 15px 40px;
+    border-radius: 4px;
+    border: 1px solid #4f5661;
+}
+#download-container a {
+    display: inline-block;
+    margin-top: 15px;
+    margin-right: 10px;
+    padding: 12px 20px;
+    background-color: #98c379;
+    color: #21252b;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+#download-container a:hover {
+    background-color: #89b36b;
+}

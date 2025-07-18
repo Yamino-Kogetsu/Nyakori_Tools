@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Maker MV Asset Encryptor</title>
+    <!-- We need the JSZip library to create a .zip file. This loads it from a CDN. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#282c34;color:#abb2bf;margin:0;padding:20px}
+        #container{max-width:800px;margin:auto;background-color:#3b4048;padding:20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+        h1,h2{color:#61afef;border-bottom:1px solid #4f5661;padding-bottom:10px}
+        p{line-height:1.6}
+        #drop-area{border:2px dashed #4f5661;border-radius:8px;padding:30px;text-align:center;transition:background-color .2s,border-color .2s}
+        #drop-area.highlight{background-color:#4f5661;border-color:#61afef}
+        #drop-area p{margin:0;font-size:1.2em}
+        input[type=file]{display:block;margin:15px auto 0}
+        button{width:100%;padding:12px;box-sizing:border-box;border-radius:4px;border:1px solid #4f5661;font-size:1em;background-color:#c678dd;color:#21252b;font-weight:700;cursor:pointer;margin-top:10px;transition:background-color .2s}
+        button:hover{background-color:#b36ac5}
+        #log-box{background-color:#21252b;border:1px solid #4f5661;padding:15px;height:250px;overflow-y:scroll;border-radius:4px;white-space:pre-wrap;word-wrap:break-word;font-family:"Courier New",Courier,monospace;font-size:.9em}
+        #download-container a{display:inline-block;margin-top:15px;padding:12px 20px;background-color:#98c379;color:#21252b;text-decoration:none;font-weight:700;border-radius:4px;transition:background-color .2s}
+        #download-container a:hover{background-color:#89b36b}
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>RPG Maker MV Asset Encryptor</h1>
+        <p>This tool will re-encrypt your clean/original game files into the format required by your custom game engine.</p>
+
+        <div class="step">
+            <h2>Step 1: Upload Your Clean/Original Game Files</h2>
+            <p>Drag and drop all the files you want to encrypt (e.g., `System.json`, `toru.png`, etc.). You can drop multiple files at once.</p>
+            <div id="drop-area">
+                <p>Drag & Drop Original Files Here</p>
+                <input type="file" id="original-files-input" multiple>
+            </div>
+        </div>
+
+        <button id="encrypt-button">Encrypt All Uploaded Files and Create ZIP</button>
+
+        <div class="step">
+            <h2>Log</h2>
+            <pre id="log-box"></pre>
+        </div>
+
+        <div id="download-container">
+            <!-- Download link for the ZIP file will appear here -->
+        </div>
+
+    </div>
+    <script src="encryptor.js"></script>
+</body>
+</html>
